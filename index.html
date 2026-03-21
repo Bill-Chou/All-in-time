@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPY / QQQ 美股大盤量化進場儀表板</title>
+
+  <!-- ========== 外部依賴 ========== -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- ========== Tailwind 自定義設定 ========== -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#3b82f6', light: '#60a5fa', dark: '#1d4ed8' },
+            accent: { DEFAULT: '#14b8a6', light: '#2dd4bf' },
+            surface: { DEFAULT: '#0f172a', card: '#1e293b', hover: '#334155' },
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- ========== 內聯 CSS ========== -->
+  <style>
+    /* === 全域樣式 === */
+    body { background: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    /* === 載入動畫 === */
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* === 脈搏動畫（用於狀態指示燈）=== */
+    .pulse-dot { width: 10px; height: 10px; border-radius: 50%; animation: pulse-ring 2s ease-out infinite; }
+    @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+    /* === 卡片樣式 === */
+    .metric-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; transition: border-color 0.2s; }
+    .metric-card:hover { border-color: #475569; }
+
+    /* === 進度條 === */
+    .score-bar { height: 8px; border-radius: 4px; background: #334155; overflow: hidden; }
+    .score-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease-out; }
+
+    /* === 檢核項目 === */
+    .check-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; background: #0f172a; border: 1px solid #1e293b; }
+    .check-item.pass { border-left: 3px solid #4ade80; }
+    .check-item.fail { border-left: 3px solid #f87171; }
+    .check-item.warn { border-left: 3px solid #facc15; }
+
+    /* === Tab 按鈕 === */
+    .tab-btn { padding: 6px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+    .tab-btn.active { background: #3b82f6; color: white; border-color: #60a5fa; }
+    .tab-btn:not(.active) { background: #1e293b; color: #94a3b8; border-color: #334155; }
+    .tab-btn:not(.active):hover { background: #334155; color: #e2e8f0; }
+
+    /* === 訊號卡片 === */
+    .signal-box { padding: 16px; border-radius: 10px; text-align: center; border: 2px solid; }
+    .signal-tranche1 { background: rgba(59, 130, 246, 0.1); border-color: #3b82f6; }
+    .signal-tranche2 { background: rgba(20, 184, 166, 0.1); border-color: #14b8a6; }
+    .signal-tranche3 { background: rgba(168, 85, 247, 0.1); border-color: #a855f7; }
+    .signal-observe { background: rgba(250, 204, 21, 0.1); border-color: #facc15; }
+    .signal-hedge { background: rgba(248, 113, 113, 0.1); border-color: #f87171; }
+
+    /* === 訊號區標記圖例 === */
+    .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; }
+
+    /* === 出場狀態卡片 === */
+    .exit-card { padding: 16px; border-radius: 10px; border: 1px solid #334155; }
+
+    /* === 底部說明區摺疊 === */
+    details summary { cursor: pointer; list-style: none; }
+    details summary::-webkit-details-marker { display: none; }
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+  <!-- ======================================================================
+       頂部導覽列
+  ====================================================================== -->
+  <nav class="sticky top-0 z-50 bg-surface border-b border-slate-700/50 backdrop-blur-md px-4 py-3">
+    <div class="max-w-[1600px] mx-auto flex items-center justify-between flex-wrap gap-3">
+      <!-- 左側品牌 -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-brand/20 flex items-center justify-center">
+          <i data-lucide="bar-chart-3" class="w-6 h-6 text-brand"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-brand-light leading-tight">量化進場儀表板</h1>
+          <p class="text-xs text-slate-500">Bull Regime Mean Reversion Dashboard</p>
+        </div>
+      </div>
+
+      <!-- 中間 Symbol 切換器 -->
+      <div class="flex items-center gap-2" id="symbolTabs">
+        <button class="tab-btn active" data-symbol="SPY" onclick="switchSymbol('SPY')">SPY</button>
+        <button class="tab-btn" data-symbol="QQQ" onclick="switchSymbol('QQQ')">QQQ</button>
+      </div>
+
+      <!-- 右側狀態 -->
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 text-sm">
+          <div id="statusDot" class="pulse-dot bg-yellow-400"></div>
+          <span id="statusText" class="text-slate-400">載入中...</span>
+        </div>
+        <span id="lastUpdate" class="text-xs text-slate-500 hidden sm:inline"></span>
+        <button id="refreshBtn" onclick="refreshData()"
+          class="flex items-center gap-2 px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg font-medium transition-colors text-sm">
+          <i data-lucide="refresh-cw" class="w-4 h-4" id="refreshIcon"></i>
+          <span>刷新數據</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ======================================================================
+       主要內容區
+  ====================================================================== -->
+  <main class="max-w-[1600px] mx-auto px-4 py-6">
+
+    <!-- ====== 第一排：關鍵指標卡片 ====== -->
+    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6" id="metricsRow">
+
+      <!-- 卡片 1: 收盤價 -->
+      <div class="metric-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-slate-400">收盤價</span>
+          <i data-lucide="dollar-sign" class="w-5 h-5 text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-bold" id="cardPrice">--</div>
+        <div class="text-sm mt-1" id="cardPriceChange">--</div>
+      </div>
+
+      <!-- 卡片 2: Regime Score -->
+      <div class="metric-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-slate-400">Regime Score</span>
+          <i data-lucide="shield-check" class="w-5 h-5 text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-bold" id="cardRegime">--</div>
+        <div class="text-sm mt-1" id="cardRegimeLabel">--</div>
+      </div>
+
+      <!-- 卡片 3: RSI(2) -->
+      <div class="metric-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-slate-400">RSI(2)</span>
+          <i data-lucide="activity" class="w-5 h-5 text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-bold" id="cardRSI2">--</div>
+        <div class="text-sm mt-1" id="cardRSI2Label">--</div>
+      </div>
+
+      <!-- 卡片 4: VIX 狀態 -->
+      <div class="metric-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-slate-400">VIX 狀態</span>
+          <i data-lucide="flame" class="w-5 h-5 text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-bold" id="cardVIX">--</div>
+        <div class="text-sm mt-1" id="cardVIXLabel">--</div>
+      </div>
+
+      <!-- 卡片 5: 波動濾網 -->
+      <div class="metric-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-slate-400">波動濾網</span>
+          <i data-lucide="shield-alert" class="w-5 h-5 text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-bold" id="cardVolFilter">--</div>
+        <div class="text-sm mt-1" id="cardVolFilterLabel">--</div>
+      </div>
+
+      <!-- 卡片 6: 當前訊號 -->
+      <div class="metric-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-slate-400">當前訊號</span>
+          <i data-lucide="zap" class="w-5 h-5 text-slate-500"></i>
+        </div>
+        <div class="text-2xl font-bold" id="cardSignal">--</div>
+        <div class="text-sm mt-1" id="cardSignalLabel">--</div>
+      </div>
+    </div>
+
+    <!-- ====== 第二排：主內容區（圖表 + 面板）====== -->
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+
+      <!-- 左側 2/3：K 線圖 -->
+      <div class="xl:col-span-2 metric-card">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="candlestick-chart" class="w-5 h-5 text-brand"></i>
+            <span class="font-semibold" id="chartTitle">SPY 日 K 線圖</span>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-slate-500">
+            <span class="legend-dot" style="background:#f59e0b"></span>SMA50
+            <span class="legend-dot" style="background:#3b82f6"></span>SMA200
+            <span class="text-slate-600">|</span>
+            <span>資料區間：近兩年</span>
+          </div>
+        </div>
+        <div id="chartContainer" style="height: 480px; width: 100%;"></div>
+      </div>
+
+      <!-- 右側 1/3：分析面板 -->
+      <div class="space-y-4 overflow-y-auto" style="max-height: 560px;">
+
+        <!-- Regime Score 分解 -->
+        <div class="metric-card">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <i data-lucide="layers" class="w-4 h-4 text-brand"></i>
+            Regime Score 分解
+          </h3>
+          <div class="mb-3">
+            <div class="flex justify-between text-sm mb-1">
+              <span>總分</span>
+              <span id="regimeScoreNum" class="font-bold">--</span>
+            </div>
+            <div class="score-bar">
+              <div id="regimeScoreBar" class="score-bar-fill bg-brand" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="space-y-2 text-sm" id="regimeBreakdown">
+            <div class="text-slate-500 text-center py-4">等待數據載入...</div>
+          </div>
+        </div>
+
+        <!-- 量化條件檢核表 -->
+        <div class="metric-card">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <i data-lucide="clipboard-check" class="w-4 h-4 text-accent"></i>
+            量化條件檢核表
+          </h3>
+          <div class="space-y-2" id="checklist">
+            <div class="text-slate-500 text-center py-4">等待數據載入...</div>
+          </div>
+        </div>
+
+        <!-- 進場訊號層級 -->
+        <div class="metric-card">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <i data-lucide="target" class="w-4 h-4 text-purple-400"></i>
+            進場訊號層級
+          </h3>
+          <div id="signalPanel">
+            <div class="text-slate-500 text-center py-4">等待數據載入...</div>
+          </div>
+        </div>
+
+        <!-- 阻擋原因 -->
+        <div class="metric-card" id="blockReasonsCard" style="display:none;">
+          <h3 class="font-semibold mb-3 flex items-center gap-2 text-red-400">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            不建議進場的原因
+          </h3>
+          <div id="blockReasons" class="space-y-1 text-sm"></div>
+        </div>
+
+        <!-- 出場狀態 -->
+        <div class="metric-card">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <i data-lucide="log-out" class="w-4 h-4 text-yellow-400"></i>
+            持倉出場參考
+          </h3>
+          <div id="exitPanel">
+            <div class="text-slate-500 text-center py-4">等待數據載入...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 第三排：底部說明區 ====== -->
+    <div class="metric-card">
+      <details>
+        <summary class="flex items-center justify-between cursor-pointer">
+          <div class="flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-slate-400"></i>
+            <span class="font-semibold">指標說明與風險提醒</span>
+          </div>
+          <i data-lucide="chevron-down" class="w-4 h-4 text-slate-500 transition-transform"></i>
+        </summary>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-slate-400">
+          <div>
+            <h4 class="text-slate-200 font-semibold mb-2">📐 策略邏輯</h4>
+            <p class="mb-2">本儀表板基於「多頭 Regime 下的短線均值回歸」概念：在確認市場處於健康多頭環境（Regime Score ≥ 70）後，當短線技術指標出現極端超賣（RSI(2) < 15）時，視為潛在的均值回歸進場機會。</p>
+            <h4 class="text-slate-200 font-semibold mb-2 mt-4">📊 指標說明</h4>
+            <ul class="space-y-1 list-disc list-inside">
+              <li><strong>Regime Score</strong>：綜合趨勢位置、趨勢斜率、波動健康度、風險偏好四大面向（0–100 分）</li>
+              <li><strong>RSI(2)</strong>：2 日相對強弱指標，用於偵測短線極端超賣</li>
+              <li><strong>RSI(5)</strong>：5 日 RSI，作為輔助確認</li>
+              <li><strong>Williams %R(2)</strong>：2 日威廉指標，< -80 確認超賣</li>
+              <li><strong>VIX</strong>：CBOE 波動率指數，反映市場恐懼情緒</li>
+              <li><strong>20-day Realized Vol</strong>：過去 20 日的年化實現波動率</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="text-slate-200 font-semibold mb-2">⚠️ 風險提醒</h4>
+            <ul class="space-y-2 list-disc list-inside">
+              <li>本 Dashboard 僅供研究與決策輔助，<strong class="text-yellow-400">不構成投資建議</strong></li>
+              <li>均值回歸策略通常持有天數偏短（3–5 天），不適合長期持有</li>
+              <li>即使所有條件滿足，仍可能因黑天鵝事件造成損失</li>
+              <li>請務必根據自身風險承受能力，設定適當的停損機制</li>
+              <li>過去表現不代表未來結果</li>
+            </ul>
+            <h4 class="text-slate-200 font-semibold mb-2 mt-4">🔌 資料來源與限制</h4>
+            <ul class="space-y-1 list-disc list-inside">
+              <li>數據來源：Yahoo Finance chart API</li>
+              <li>因瀏覽器 CORS 限制，直接開啟 HTML 可能無法抓取數據</li>
+              <li>建議透過本地 HTTP Server 或支援 CORS 的環境執行</li>
+              <li>VIX 與 breadth proxy（RSP/QQEW）為獨立數據源，可能偶爾取得失敗</li>
+            </ul>
+          </div>
+        </div>
+      </details>
+    </div>
+
+  </main>
+
+  <!-- ======================================================================
+       JavaScript：全部內聯
+  ====================================================================== -->
+  <script>
+  (function() {
+    'use strict';
+
+    // ==========================================================
+    // 全域狀態
+    // ==========================================================
+    let currentSymbol = 'SPY';        // 當前顯示的標的
+    let chartInstance = null;          // Lightweight Charts 實例
+    let candleSeries = null;          // K 線 series
+    let sma50Series = null;           // SMA50 series
+    let sma200Series = null;          // SMA200 series
+    let isLoading = false;            // 是否正在載入
+    let resizeObserver = null;        // 圖表 resize 觀察器
+
+    // 各標的的 breadth proxy 對照
+    const BREADTH_PROXY = { SPY: 'RSP', QQQ: 'QQEW' };
+
+    // ==========================================================
+    // 工具函式：技術指標計算
+    // ==========================================================
+
+    /**
+     * 計算簡單移動平均線 (SMA)
+     * @param {number[]} data - 收盤價陣列
+     * @param {number} period - 期間
+     * @returns {(number|null)[]} SMA 陣列（前 period-1 筆為 null）
+     */
+    function calcSMA(data, period) {
+      const result = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) { result.push(null); continue; }
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) sum += data[j];
+        result.push(sum / period);
+      }
+      return result;
+    }
+
+    /**
+     * 計算 RSI（相對強弱指標）— Wilder 平滑法
+     * @param {number[]} closes - 收盤價陣列
+     * @param {number} period - RSI 期間
+     * @returns {(number|null)[]}
+     */
+    function calcRSI(closes, period) {
+      const result = new Array(closes.length).fill(null);
+      if (closes.length < period + 1) return result;
+
+      let avgGain = 0, avgLoss = 0;
+      for (let i = 1; i <= period; i++) {
+        const diff = closes[i] - closes[i - 1];
+        if (diff > 0) avgGain += diff; else avgLoss += Math.abs(diff);
+      }
+      avgGain /= period;
+      avgLoss /= period;
+      result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+
+      for (let i = period + 1; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        const gain = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+      }
+      return result;
+    }
+
+    /**
+     * 計算 Williams %R
+     */
+    function calcWilliamsR(highs, lows, closes, period) {
+      const result = new Array(closes.length).fill(null);
+      for (let i = period - 1; i < closes.length; i++) {
+        let hh = -Infinity, ll = Infinity;
+        for (let j = i - period + 1; j <= i; j++) {
+          if (highs[j] > hh) hh = highs[j];
+          if (lows[j] < ll) ll = lows[j];
+        }
+        result[i] = hh === ll ? 0 : ((hh - closes[i]) / (hh - ll)) * -100;
+      }
+      return result;
+    }
+
+    /**
+     * 計算 ATR（平均真實波幅）
+     */
+    function calcATR(highs, lows, closes, period) {
+      const result = new Array(closes.length).fill(null);
+      if (closes.length < period + 1) return result;
+      const tr = [highs[0] - lows[0]];
+      for (let i = 1; i < closes.length; i++) {
+        tr.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));
+      }
+      let atr = 0;
+      for (let i = 0; i < period; i++) atr += tr[i];
+      atr /= period;
+      result[period - 1] = atr;
+      for (let i = period; i < closes.length; i++) {
+        atr = (atr * (period - 1) + tr[i]) / period;
+        result[i] = atr;
+      }
+      return result;
+    }
+
+    /**
+     * 計算 N 日年化實現波動率（Realized Volatility）
+     */
+    function calcRealizedVol(closes, period) {
+      period = period || 20;
+      const result = new Array(closes.length).fill(null);
+      const logReturns = [0];
+      for (let i = 1; i < closes.length; i++) {
+        logReturns.push(Math.log(closes[i] / closes[i - 1]));
+      }
+      for (let i = period; i < closes.length; i++) {
+        const slice = logReturns.slice(i - period + 1, i + 1);
+        const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+        const variance = slice.reduce((a, b) => a + (b - mean) ** 2, 0) / (slice.length - 1);
+        result[i] = Math.sqrt(variance) * Math.sqrt(252) * 100; // 年化百分比
+      }
+      return result;
+    }
+
+    /**
+     * 計算 Bollinger Band 下軌
+     */
+    function calcBBLower(closes, period, mult) {
+      const sma = calcSMA(closes, period);
+      const result = new Array(closes.length).fill(null);
+      for (let i = period - 1; i < closes.length; i++) {
+        let sumSq = 0;
+        for (let j = i - period + 1; j <= i; j++) sumSq += (closes[j] - sma[i]) ** 2;
+        const std = Math.sqrt(sumSq / period);
+        result[i] = sma[i] - mult * std;
+      }
+      return result;
+    }
+
+    /**
+     * 計算某數值在過去 lookback 期間的百分位排名
+     */
+    function percentileRank(data, idx, lookback) {
+      const slice = [];
+      for (let i = Math.max(0, idx - lookback + 1); i <= idx; i++) {
+        if (data[i] != null) slice.push(data[i]);
+      }
+      if (slice.length < 20) return null;
+      const current = data[idx];
+      if (current == null) return null;
+      const below = slice.filter(v => v < current).length;
+      return (below / slice.length) * 100;
+    }
+
+    // ==========================================================
+    // 資料抓取
+    // ==========================================================
+
+    /**
+     * 帶重試與 CORS 備援的資料抓取
+     */
+    async function fetchWithRetry(symbol) {
+      const baseUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=2y&interval=1d`;
+      const proxies = [
+        url => url,
+        url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      ];
+      for (const makeUrl of proxies) {
+        try {
+          const resp = await fetch(makeUrl(baseUrl), { signal: AbortSignal.timeout(15000) });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+          if (json.chart && json.chart.result && json.chart.result.length > 0) {
+            console.log(`[Dashboard] 成功取得 ${symbol} 數據`);
+            return json;
+          }
+          throw new Error('無效數據結構');
+        } catch (err) {
+          console.warn(`[Dashboard] ${symbol} 請求失敗 (${makeUrl('test').substring(0,40)}...):`, err.message);
+        }
+      }
+      throw new Error(`無法取得 ${symbol} 數據。請確認網路連線，或使用支援 CORS 的環境（本地 HTTP Server）。`);
+    }
+
+    /**
+     * 抓取 VIX 數據：回傳最新收盤價與 10 日 SMA
+     */
+    async function fetchVIX() {
+      try {
+        const data = await fetchWithRetry('^VIX');
+        const result = data.chart.result[0];
+        const closes = result.indicators.quote[0].close.filter(v => v != null);
+        const latest = closes[closes.length - 1];
+        const sma10Arr = calcSMA(closes, 10);
+        const sma10 = sma10Arr[sma10Arr.length - 1];
+        return { close: latest, sma10: sma10 || latest };
+      } catch (e) {
+        console.warn('[Dashboard] VIX 數據取得失敗:', e.message);
+        return null;
+      }
+    }
+
+    /**
+     * 抓取 breadth proxy（RSP 或 QQEW）的收盤價與 SMA50
+     */
+    async function fetchBreadthProxy(symbol) {
+      const proxy = BREADTH_PROXY[symbol];
+      if (!proxy) return null;
+      try {
+        const data = await fetchWithRetry(proxy);
+        const result = data.chart.result[0];
+        const closes = result.indicators.quote[0].close.filter(v => v != null);
+        const latest = closes[closes.length - 1];
+        const sma50Arr = calcSMA(closes, 50);
+        const sma50 = sma50Arr[sma50Arr.length - 1];
+        return { close: latest, sma50: sma50 || latest };
+      } catch (e) {
+        console.warn(`[Dashboard] Breadth proxy ${proxy} 取得失敗:`, e.message);
+        return null;
+      }
+    }
+
+    // ==========================================================
+    // 資料清洗與解析
+    // ==========================================================
+
+    /**
+     * 從 Yahoo Finance API 回應中解析出乾淨的 OHLCV 資料
+     * - 過濾 null / 無效 / 零值 的交易日
+     */
+    function parseChartData(raw) {
+      const result = raw.chart.result[0];
+      const timestamps = result.timestamp;
+      const quote = result.indicators.quote[0];
+      const clean = { dates: [], opens: [], highs: [], lows: [], closes: [], volumes: [] };
+
+      for (let i = 0; i < timestamps.length; i++) {
+        const o = quote.open[i], h = quote.high[i], l = quote.low[i], c = quote.close[i];
+        if (o == null || h == null || l == null || c == null) continue;
+        if (h === 0 || l === 0) continue;
+        clean.dates.push(timestamps[i]);
+        clean.opens.push(o);
+        clean.highs.push(h);
+        clean.lows.push(l);
+        clean.closes.push(c);
+        clean.volumes.push(quote.volume[i] || 0);
+      }
+      return clean;
+    }
+
+    // ==========================================================
+    // Regime Score 計算（0–100 分）
+    // ==========================================================
+
+    function calcRegimeScore(data, vixData, breadth) {
+      const c = data.closes, h = data.highs, l = data.lows;
+      const n = c.length;
+      const latest = c[n - 1];
+
+      const sma200 = calcSMA(c, 200);
+      const sma50 = calcSMA(c, 50);
+      const realVol = calcRealizedVol(c, 20);
+      const atr14 = calcATR(h, l, c, 14);
+
+      const latestSMA200 = sma200[n - 1];
+      const latestSMA50 = sma50[n - 1];
+
+      const breakdown = [];
+      let total = 0;
+
+      // === A. 趨勢位置（35 分）===
+      const a1 = latestSMA200 != null && latest > latestSMA200;
+      if (a1) total += 15;
+      breakdown.push({ category: '趨勢位置', label: 'Close > SMA200', pass: a1, pts: a1 ? 15 : 0, max: 15,
+        detail: `Close=${latest.toFixed(2)}, SMA200=${latestSMA200 != null ? latestSMA200.toFixed(2) : 'N/A'}` });
+
+      const a2 = latestSMA50 != null && latest > latestSMA50;
+      if (a2) total += 10;
+      breakdown.push({ category: '趨勢位置', label: 'Close > SMA50', pass: a2, pts: a2 ? 10 : 0, max: 10,
+        detail: `Close=${latest.toFixed(2)}, SMA50=${latestSMA50 != null ? latestSMA50.toFixed(2) : 'N/A'}` });
+
+      const a3 = latestSMA50 != null && latestSMA200 != null && latestSMA50 > latestSMA200;
+      if (a3) total += 10;
+      breakdown.push({ category: '趨勢位置', label: 'SMA50 > SMA200（黃金交叉）', pass: a3, pts: a3 ? 10 : 0, max: 10,
+        detail: `SMA50=${latestSMA50 != null ? latestSMA50.toFixed(2) : 'N/A'}, SMA200=${latestSMA200 != null ? latestSMA200.toFixed(2) : 'N/A'}` });
+
+      // === B. 趨勢斜率（20 分）===
+      const sma200_20ago = n > 20 ? sma200[n - 21] : null;
+      const b1 = latestSMA200 != null && sma200_20ago != null && latestSMA200 > sma200_20ago;
+      if (b1) total += 10;
+      breakdown.push({ category: '趨勢斜率', label: 'SMA200 斜率 > 0（vs 20 日前）', pass: b1, pts: b1 ? 10 : 0, max: 10,
+        detail: `今日=${latestSMA200 != null ? latestSMA200.toFixed(2) : 'N/A'}, 20日前=${sma200_20ago != null ? sma200_20ago.toFixed(2) : 'N/A'}` });
+
+      const sma50_10ago = n > 10 ? sma50[n - 11] : null;
+      const b2 = latestSMA50 != null && sma50_10ago != null && latestSMA50 > sma50_10ago;
+      if (b2) total += 10;
+      breakdown.push({ category: '趨勢斜率', label: 'SMA50 斜率 > 0（vs 10 日前）', pass: b2, pts: b2 ? 10 : 0, max: 10,
+        detail: `今日=${latestSMA50 != null ? latestSMA50.toFixed(2) : 'N/A'}, 10日前=${sma50_10ago != null ? sma50_10ago.toFixed(2) : 'N/A'}` });
+
+      // === C. 波動健康度（20 分）===
+      const latestRV = realVol[n - 1];
+      const rvPctile = percentileRank(realVol, n - 1, 252);
+      const c1 = rvPctile != null && rvPctile < 80;
+      if (c1) total += 10;
+      breakdown.push({ category: '波動健康度', label: 'Realized Vol < 80th 百分位', pass: c1, pts: c1 ? 10 : 0, max: 10,
+        detail: `RV=${latestRV != null ? latestRV.toFixed(1) + '%' : 'N/A'}, 百分位=${rvPctile != null ? rvPctile.toFixed(0) + '%' : 'N/A'}` });
+
+      const latestATR = atr14[n - 1];
+      const atrPct = latestATR != null ? (latestATR / latest) * 100 : null;
+      const atrPctArr = atr14.map((v, i) => v != null && c[i] > 0 ? (v / c[i]) * 100 : null);
+      const atrPctile = percentileRank(atrPctArr, n - 1, 252);
+      const c2 = atrPctile != null && atrPctile < 80;
+      if (c2) total += 10;
+      breakdown.push({ category: '波動健康度', label: 'ATR% < 80th 百分位', pass: c2, pts: c2 ? 10 : 0, max: 10,
+        detail: `ATR%=${atrPct != null ? atrPct.toFixed(2) + '%' : 'N/A'}, 百分位=${atrPctile != null ? atrPctile.toFixed(0) + '%' : 'N/A'}` });
+
+      // === D. 風險偏好 / Breadth Proxy（25 分）===
+      if (breadth && breadth.close != null && breadth.sma50 != null) {
+        const d1 = breadth.close > breadth.sma50;
+        if (d1) total += 10;
+        breakdown.push({ category: '風險偏好', label: `${BREADTH_PROXY[currentSymbol]} Close > SMA50`, pass: d1, pts: d1 ? 10 : 0, max: 10,
+          detail: `${BREADTH_PROXY[currentSymbol]}=${breadth.close.toFixed(2)}, SMA50=${breadth.sma50.toFixed(2)}` });
+      } else {
+        breakdown.push({ category: '風險偏好', label: `Breadth Proxy (${BREADTH_PROXY[currentSymbol]})`, pass: null, pts: 0, max: 10,
+          detail: 'unavailable — 無法取得數據' });
+      }
+
+      if (vixData && vixData.close != null) {
+        const d2 = vixData.close < 25;
+        if (d2) total += 5;
+        breakdown.push({ category: '風險偏好', label: 'VIX < 25', pass: d2, pts: d2 ? 5 : 0, max: 5,
+          detail: `VIX = ${vixData.close.toFixed(2)}` });
+
+        const d3 = vixData.close < 20;
+        if (d3) total += 5;
+        breakdown.push({ category: '風險偏好', label: 'VIX < 20（低恐懼）', pass: d3, pts: d3 ? 5 : 0, max: 5,
+          detail: `VIX = ${vixData.close.toFixed(2)}` });
+
+        const spikeRatio = vixData.sma10 > 0 ? vixData.close / vixData.sma10 : 1;
+        const d4 = spikeRatio < 1.15;
+        if (d4) total += 5;
+        breakdown.push({ category: '風險偏好', label: 'VIX / SMA10 < 1.15（無急升）', pass: d4, pts: d4 ? 5 : 0, max: 5,
+          detail: `比值 = ${spikeRatio.toFixed(3)}` });
+      } else {
+        breakdown.push({ category: '風險偏好', label: 'VIX 數據', pass: null, pts: 0, max: 15,
+          detail: 'unavailable — 無法取得' });
+      }
+
+      return { total: Math.min(total, 100), breakdown, sma200, sma50, realVol, atr14, latestRV, rvPctile, atrPctile };
+    }
+
+    // ==========================================================
+    // 波動濾網
+    // ==========================================================
+
+    function calcVolatilityFilter(vixData, regimeResult) {
+      const result = { pass: true, vixStatus: '未知', vixSpike: false, rvStatus: '正常', blocked: false, reasons: [] };
+
+      if (vixData && vixData.close != null) {
+        const v = vixData.close;
+        if (v < 25) {
+          result.vixStatus = '正常';
+        } else if (v < 32) {
+          result.vixStatus = '警戒';
+          result.reasons.push(`VIX = ${v.toFixed(1)}，處於警戒區間（25–32）`);
+        } else {
+          result.vixStatus = '高風險';
+          result.blocked = true;
+          result.pass = false;
+          result.reasons.push(`VIX = ${v.toFixed(1)} ≥ 32，高風險，不建議新倉`);
+        }
+        const spikeRatio = vixData.sma10 > 0 ? vixData.close / vixData.sma10 : 1;
+        if (spikeRatio > 1.25) {
+          result.vixSpike = true;
+          result.reasons.push(`VIX 急升：VIX / SMA10 = ${spikeRatio.toFixed(2)} > 1.25`);
+        }
+      } else {
+        result.vixStatus = '無數據';
+      }
+
+      if (regimeResult.rvPctile != null) {
+        if (regimeResult.rvPctile >= 90) {
+          result.rvStatus = '極高波動';
+          result.blocked = true;
+          result.pass = false;
+          result.reasons.push(`Realized Vol 百分位 = ${regimeResult.rvPctile.toFixed(0)}%（≥ 90th），不建議進場`);
+        } else if (regimeResult.rvPctile >= 85) {
+          result.rvStatus = '高波動';
+          result.reasons.push(`Realized Vol 百分位 = ${regimeResult.rvPctile.toFixed(0)}%（≥ 85th），波動偏高`);
+        }
+      }
+
+      return result;
+    }
+
+    // ==========================================================
+    // 進場訊號判讀
+    // ==========================================================
+
+    function calcSignal(data, regimeScore, volFilter) {
+      const c = data.closes, h = data.highs, l = data.lows;
+      const n = c.length;
+      const latest = c[n - 1];
+
+      const rsi2 = calcRSI(c, 2);
+      const rsi5 = calcRSI(c, 5);
+      const wr2 = calcWilliamsR(h, l, c, 2);
+      const bbLower = calcBBLower(c, 5, 2);
+      const sma5 = calcSMA(c, 5);
+
+      const latestRSI2 = rsi2[n - 1];
+      const latestRSI5 = rsi5[n - 1];
+      const latestWR2 = wr2[n - 1];
+      const latestBBL = bbLower[n - 1];
+      const latestSMA5 = sma5[n - 1];
+
+      const auxChecks = [
+        { label: 'Williams %R(2) < -80', pass: latestWR2 != null && latestWR2 < -80, value: latestWR2 },
+        { label: 'RSI(5) < 35', pass: latestRSI5 != null && latestRSI5 < 35, value: latestRSI5 },
+        { label: 'Close < BB Lower(5,2)', pass: latestBBL != null && latest < latestBBL, value: latestBBL },
+      ];
+
+      const blockReasons = [];
+      let signalLevel = 'none';
+      let signalText = '';
+      let signalClass = '';
+      let signalPosition = '';
+
+      if (regimeScore < 50) {
+        signalLevel = 'hedge';
+        signalText = '避險 / 不建議新倉';
+        signalClass = 'signal-hedge';
+        signalPosition = '0%';
+        blockReasons.push(`Regime Score = ${regimeScore}（< 50）— Risk-Off Regime`);
+      } else if (volFilter.blocked) {
+        signalLevel = 'hedge';
+        signalText = '避險 / 波動風險過高';
+        signalClass = 'signal-hedge';
+        signalPosition = '0%';
+        volFilter.reasons.forEach(r => blockReasons.push(r));
+      } else if (regimeScore >= 75 && latestRSI2 != null && latestRSI2 < 5 && !volFilter.blocked) {
+        signalLevel = 'tranche3';
+        signalText = '第三層進場區（極端失衡）';
+        signalClass = 'signal-tranche3';
+        signalPosition = '100%';
+      } else if (regimeScore >= 70 && latestRSI2 != null && latestRSI2 < 8) {
+        signalLevel = 'tranche2';
+        signalText = '第二層進場區（恐慌加碼）';
+        signalClass = 'signal-tranche2';
+        signalPosition = '60%';
+      } else if (regimeScore >= 70 && latestRSI2 != null && latestRSI2 < 15) {
+        signalLevel = 'tranche1';
+        signalText = '第一層進場區（試單）';
+        signalClass = 'signal-tranche1';
+        signalPosition = '30%';
+      } else if (regimeScore >= 50) {
+        signalLevel = 'observe';
+        signalText = '多頭觀察區';
+        signalClass = 'signal-observe';
+        signalPosition = '';
+        if (regimeScore < 70) blockReasons.push(`Regime Score = ${regimeScore}（50–69），僅 Caution Regime，允許觀察或試單`);
+        if (latestRSI2 != null && latestRSI2 >= 15) blockReasons.push(`RSI(2) = ${latestRSI2.toFixed(1)}（≥ 15），尚未達到短線極端超賣`);
+      }
+
+      return { signalLevel, signalText, signalClass, signalPosition, rsi2: latestRSI2, rsi5: latestRSI5, wr2: latestWR2, bbLower: latestBBL, sma5: latestSMA5, auxChecks, blockReasons };
+    }
+
+    // ==========================================================
+    // 出場狀態判讀
+    // ==========================================================
+
+    function calcExitStatus(data, regimeResult, signal) {
+      const c = data.closes;
+      const n = c.length;
+      const latest = c[n - 1];
+      const items = [];
+
+      // 均值回歸偏完成
+      const rsi2 = signal.rsi2;
+      const sma5 = signal.sma5;
+      const meanRevDone = (rsi2 != null && rsi2 > 65) || (sma5 != null && latest > sma5);
+
+      if (meanRevDone) {
+        const reasons = [];
+        if (rsi2 != null && rsi2 > 65) reasons.push(`RSI(2) = ${rsi2.toFixed(1)} > 65`);
+        if (sma5 != null && latest > sma5) reasons.push(`Close > SMA5`);
+        items.push({ icon: '🟢', label: '均值回歸偏完成', detail: reasons.join('，'), status: 'exit' });
+      } else {
+        items.push({ icon: '🔵', label: '均值回歸進行中', detail: `RSI(2) = ${rsi2 != null ? rsi2.toFixed(1) : 'N/A'}，尚未回到中性區（> 65）`, status: 'hold' });
+      }
+
+      items.push({ icon: '⏱️', label: '時間風險提醒', detail: '此類策略通常持有 3–5 天，超過後效果遞減。請留意持有時間。', status: 'info' });
+
+      // 災難風險
+      const sma200 = regimeResult.sma200;
+      const sma50 = regimeResult.sma50;
+      const latestSMA200 = sma200[n - 1];
+      const latestSMA50 = sma50[n - 1];
+      const sma50_10ago = n > 10 ? sma50[n - 11] : null;
+      const sma50Declining = latestSMA50 != null && sma50_10ago != null && latestSMA50 < sma50_10ago;
+      const belowSMA200 = latestSMA200 != null && latest < latestSMA200;
+      const disaster = belowSMA200 && sma50Declining;
+
+      if (disaster) {
+        items.push({ icon: '🔴', label: '災難風險偏高', detail: `Close < SMA200 且 SMA50 斜率下行 — 建議考慮風險退出`, status: 'danger' });
+      } else if (belowSMA200) {
+        items.push({ icon: '🟡', label: '趨勢風險升高', detail: `Close < SMA200，趨勢轉弱，需留意`, status: 'warn' });
+      } else {
+        items.push({ icon: '🟢', label: '趨勢正常', detail: `Close > SMA200，趨勢健康`, status: 'ok' });
+      }
+
+      // 波動環境
+      const rvPct = regimeResult.rvPctile;
+      if (rvPct != null && rvPct >= 85) {
+        items.push({ icon: '🟡', label: '波動環境異常', detail: `Realized Vol 百分位 ${rvPct.toFixed(0)}%，波動偏高`, status: 'warn' });
+      }
+
+      let bias = '續抱';
+      let biasColor = 'text-green-400';
+      if (disaster) { bias = '準備風險退出'; biasColor = 'text-red-400'; }
+      else if (meanRevDone) { bias = '準備獲利了結'; biasColor = 'text-yellow-400'; }
+
+      return { items, bias, biasColor };
+    }
+
+    // ==========================================================
+    // 圖表渲染
+    // ==========================================================
+
+    function renderChart(data, regimeResult) {
+      const container = document.getElementById('chartContainer');
+
+      // 清除舊圖表及 observer
+      if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
+      if (chartInstance) { chartInstance.remove(); chartInstance = null; }
+      container.innerHTML = '';
+
+      chartInstance = LightweightCharts.createChart(container, {
+        width: container.clientWidth,
+        height: container.clientHeight || 480,
+        layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#94a3b8', fontSize: 12 },
+        grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+        crosshair: { mode: 0 },
+        rightPriceScale: { borderColor: '#475569' },
+        timeScale: { borderColor: '#475569', timeVisible: false },
+      });
+
+      // K 線
+      candleSeries = chartInstance.addCandlestickSeries({
+        upColor: '#4ade80', downColor: '#f87171',
+        borderUpColor: '#4ade80', borderDownColor: '#f87171',
+        wickUpColor: '#4ade80', wickDownColor: '#f87171',
+      });
+      const candles = [];
+      for (let i = 0; i < data.dates.length; i++) {
+        candles.push({ time: data.dates[i], open: data.opens[i], high: data.highs[i], low: data.lows[i], close: data.closes[i] });
+      }
+      candleSeries.setData(candles);
+
+      // SMA50 線
+      sma50Series = chartInstance.addLineSeries({ color: '#f59e0b', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'SMA50' });
+      const sma50Data = [];
+      for (let i = 0; i < data.dates.length; i++) {
+        if (regimeResult.sma50[i] != null) sma50Data.push({ time: data.dates[i], value: regimeResult.sma50[i] });
+      }
+      sma50Series.setData(sma50Data);
+
+      // SMA200 線
+      sma200Series = chartInstance.addLineSeries({ color: '#3b82f6', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'SMA200' });
+      const sma200Data = [];
+      for (let i = 0; i < data.dates.length; i++) {
+        if (regimeResult.sma200[i] != null) sma200Data.push({ time: data.dates[i], value: regimeResult.sma200[i] });
+      }
+      sma200Series.setData(sma200Data);
+
+      chartInstance.timeScale().fitContent();
+
+      // 響應式 resize
+      resizeObserver = new ResizeObserver(() => {
+        if (chartInstance) {
+          chartInstance.applyOptions({ width: container.clientWidth });
+        }
+      });
+      resizeObserver.observe(container);
+    }
+
+    // ==========================================================
+    // UI 更新函式
+    // ==========================================================
+
+    function setStatus(state, msg) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      dot.className = 'pulse-dot';
+      if (state === 'loading') { dot.classList.add('bg-yellow-400'); text.textContent = msg || '載入中...'; }
+      else if (state === 'success') { dot.classList.add('bg-green-400'); text.textContent = msg || '已連線'; }
+      else if (state === 'error') { dot.classList.add('bg-red-400'); text.textContent = msg || '連線失敗'; }
+    }
+
+    function setLastUpdate() {
+      const el = document.getElementById('lastUpdate');
+      el.textContent = '最後更新: ' + new Date().toLocaleTimeString('zh-Hant');
+      el.classList.remove('hidden');
+    }
+
+    function updateMetricCards(data, regimeResult, signal, vixData, volFilter) {
+      const n = data.closes.length;
+      const latest = data.closes[n - 1];
+      const prev = n > 1 ? data.closes[n - 2] : latest;
+      const change = latest - prev;
+      const changePct = prev !== 0 ? (change / prev) * 100 : 0;
+
+      // 收盤價
+      document.getElementById('cardPrice').textContent = `$${latest.toFixed(2)}`;
+      const changeEl = document.getElementById('cardPriceChange');
+      changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${change >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+      changeEl.className = `text-sm mt-1 ${change >= 0 ? 'text-green-400' : 'text-red-400'}`;
+
+      // Regime Score
+      const scoreEl = document.getElementById('cardRegime');
+      scoreEl.textContent = regimeResult.total;
+      const labelEl = document.getElementById('cardRegimeLabel');
+      if (regimeResult.total >= 70) { scoreEl.className = 'text-2xl font-bold text-green-400'; labelEl.textContent = 'Bull Regime'; labelEl.className = 'text-sm mt-1 text-green-400'; }
+      else if (regimeResult.total >= 50) { scoreEl.className = 'text-2xl font-bold text-yellow-400'; labelEl.textContent = 'Caution'; labelEl.className = 'text-sm mt-1 text-yellow-400'; }
+      else { scoreEl.className = 'text-2xl font-bold text-red-400'; labelEl.textContent = 'Risk-Off'; labelEl.className = 'text-sm mt-1 text-red-400'; }
+
+      // RSI(2)
+      const rsi2El = document.getElementById('cardRSI2');
+      rsi2El.textContent = signal.rsi2 != null ? signal.rsi2.toFixed(1) : 'N/A';
+      const rsi2Label = document.getElementById('cardRSI2Label');
+      if (signal.rsi2 != null) {
+        if (signal.rsi2 < 5) { rsi2El.className = 'text-2xl font-bold text-purple-400'; rsi2Label.textContent = '🔴 極端超賣'; rsi2Label.className = 'text-sm mt-1 text-purple-400'; }
+        else if (signal.rsi2 < 10) { rsi2El.className = 'text-2xl font-bold text-red-400'; rsi2Label.textContent = '🔴 極度超賣'; rsi2Label.className = 'text-sm mt-1 text-red-400'; }
+        else if (signal.rsi2 < 15) { rsi2El.className = 'text-2xl font-bold text-orange-400'; rsi2Label.textContent = '🟠 超賣'; rsi2Label.className = 'text-sm mt-1 text-orange-400'; }
+        else if (signal.rsi2 < 30) { rsi2El.className = 'text-2xl font-bold text-yellow-400'; rsi2Label.textContent = '🟡 偏低'; rsi2Label.className = 'text-sm mt-1 text-yellow-400'; }
+        else { rsi2El.className = 'text-2xl font-bold text-slate-300'; rsi2Label.textContent = '中性'; rsi2Label.className = 'text-sm mt-1 text-slate-400'; }
+      }
+
+      // VIX
+      const vixEl = document.getElementById('cardVIX');
+      const vixLabel = document.getElementById('cardVIXLabel');
+      if (vixData && vixData.close != null) {
+        vixEl.textContent = vixData.close.toFixed(1);
+        if (volFilter.vixStatus === '正常') { vixEl.className = 'text-2xl font-bold text-green-400'; vixLabel.textContent = '正常'; vixLabel.className = 'text-sm mt-1 text-green-400'; }
+        else if (volFilter.vixStatus === '警戒') { vixEl.className = 'text-2xl font-bold text-yellow-400'; vixLabel.textContent = '⚠️ 警戒'; vixLabel.className = 'text-sm mt-1 text-yellow-400'; }
+        else { vixEl.className = 'text-2xl font-bold text-red-400'; vixLabel.textContent = '🔴 高風險'; vixLabel.className = 'text-sm mt-1 text-red-400'; }
+      } else {
+        vixEl.textContent = 'N/A'; vixLabel.textContent = '無數據'; vixEl.className = 'text-2xl font-bold text-slate-500'; vixLabel.className = 'text-sm mt-1 text-slate-500';
+      }
+
+      // 波動濾網
+      const volEl = document.getElementById('cardVolFilter');
+      const volLabel = document.getElementById('cardVolFilterLabel');
+      if (volFilter.blocked) { volEl.textContent = '阻擋'; volEl.className = 'text-2xl font-bold text-red-400'; volLabel.textContent = '不建議進場'; volLabel.className = 'text-sm mt-1 text-red-400'; }
+      else if (volFilter.reasons.length > 0) { volEl.textContent = '注意'; volEl.className = 'text-2xl font-bold text-yellow-400'; volLabel.textContent = '條件偏弱'; volLabel.className = 'text-sm mt-1 text-yellow-400'; }
+      else { volEl.textContent = '通過'; volEl.className = 'text-2xl font-bold text-green-400'; volLabel.textContent = '環境正常'; volLabel.className = 'text-sm mt-1 text-green-400'; }
+
+      // 當前訊號
+      const sigEl = document.getElementById('cardSignal');
+      const sigLabel = document.getElementById('cardSignalLabel');
+      const sigColors = { tranche3: 'text-purple-400', tranche2: 'text-accent-light', tranche1: 'text-brand-light', observe: 'text-yellow-400', hedge: 'text-red-400', none: 'text-slate-500' };
+      const sigNames = { tranche3: '第三層', tranche2: '第二層', tranche1: '第一層', observe: '觀察', hedge: '避險', none: '--' };
+      sigEl.textContent = sigNames[signal.signalLevel] || '--';
+      sigEl.className = `text-2xl font-bold ${sigColors[signal.signalLevel] || ''}`;
+      sigLabel.textContent = signal.signalPosition ? `建議倉位: ${signal.signalPosition}` : signal.signalText;
+      sigLabel.className = `text-sm mt-1 ${sigColors[signal.signalLevel] || 'text-slate-400'}`;
+    }
+
+    function updateRegimeBreakdown(regimeResult) {
+      const container = document.getElementById('regimeBreakdown');
+      document.getElementById('regimeScoreNum').textContent = `${regimeResult.total} / 100`;
+      const bar = document.getElementById('regimeScoreBar');
+      bar.style.width = `${regimeResult.total}%`;
+      if (regimeResult.total >= 70) bar.className = 'score-bar-fill bg-green-500';
+      else if (regimeResult.total >= 50) bar.className = 'score-bar-fill bg-yellow-500';
+      else bar.className = 'score-bar-fill bg-red-500';
+
+      let html = '';
+      let currentCat = '';
+      for (const item of regimeResult.breakdown) {
+        if (item.category !== currentCat) {
+          currentCat = item.category;
+          html += `<div class="text-xs text-slate-500 uppercase tracking-wider mt-3 mb-1 font-semibold">${currentCat}</div>`;
+        }
+        const statusClass = item.pass === null ? 'warn' : item.pass ? 'pass' : 'fail';
+        const icon = item.pass === null ? '⚪' : item.pass ? '✅' : '❌';
+        html += `<div class="check-item ${statusClass}">
+          <span class="text-base mt-0.5 shrink-0">${icon}</span>
+          <div class="min-w-0">
+            <div class="font-medium text-sm">${item.label} <span class="text-slate-500 font-normal">(${item.pts}/${item.max})</span></div>
+            <div class="text-xs text-slate-500 break-all">${item.detail}</div>
+          </div>
+        </div>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function updateChecklist(data, regimeResult, signal, vixData, volFilter) {
+      const container = document.getElementById('checklist');
+      const items = [];
+
+      items.push({ label: 'Regime Score ≥ 70（Bull Regime）', pass: regimeResult.total >= 70, detail: `當前 Score = ${regimeResult.total}` });
+      items.push({ label: '波動濾網未阻擋', pass: !volFilter.blocked, detail: volFilter.blocked ? volFilter.reasons[0] : '波動環境正常' });
+
+      if (vixData && vixData.close != null) {
+        items.push({ label: 'VIX < 25', pass: vixData.close < 25, detail: `VIX = ${vixData.close.toFixed(2)}` });
+        const spike = vixData.sma10 > 0 ? vixData.close / vixData.sma10 : 1;
+        items.push({ label: 'VIX 無急升（VIX / SMA10 < 1.25）', pass: spike < 1.25, detail: `比值 = ${spike.toFixed(3)}` });
+      }
+
+      items.push({ label: 'RSI(2) < 15（第一層門檻）', pass: signal.rsi2 != null && signal.rsi2 < 15, detail: `RSI(2) = ${signal.rsi2 != null ? signal.rsi2.toFixed(1) : 'N/A'}` });
+      items.push({ label: 'RSI(2) < 8（第二層門檻）', pass: signal.rsi2 != null && signal.rsi2 < 8, detail: `RSI(2) = ${signal.rsi2 != null ? signal.rsi2.toFixed(1) : 'N/A'}` });
+      items.push({ label: 'RSI(2) < 5（第三層門檻）', pass: signal.rsi2 != null && signal.rsi2 < 5, detail: `RSI(2) = ${signal.rsi2 != null ? signal.rsi2.toFixed(1) : 'N/A'}` });
+
+      for (const aux of signal.auxChecks) {
+        items.push({ label: aux.label, pass: aux.pass, detail: `值 = ${aux.value != null ? (typeof aux.value === 'number' ? aux.value.toFixed(2) : aux.value) : 'N/A'}` });
+      }
+
+      let html = '';
+      for (const it of items) {
+        const cls = it.pass ? 'pass' : 'fail';
+        const icon = it.pass ? '✅' : '❌';
+        html += `<div class="check-item ${cls}">
+          <span class="text-base mt-0.5 shrink-0">${icon}</span>
+          <div class="min-w-0">
+            <div class="font-medium text-sm">${it.label}</div>
+            <div class="text-xs text-slate-500">${it.detail}</div>
+          </div>
+        </div>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function updateSignalPanel(signal) {
+      const panel = document.getElementById('signalPanel');
+      const levels = [
+        { key: 'tranche1', name: '第一層 — 試單區', desc: 'Regime ≥ 70 + RSI(2) < 15', pos: '建議倉位 30%', cls: 'signal-tranche1' },
+        { key: 'tranche2', name: '第二層 — 恐慌加碼', desc: 'Regime ≥ 70 + RSI(2) < 8', pos: '累計倉位 60%', cls: 'signal-tranche2' },
+        { key: 'tranche3', name: '第三層 — 極端失衡', desc: 'Regime ≥ 75 + RSI(2) < 5', pos: '累計倉位 100%', cls: 'signal-tranche3' },
+      ];
+
+      let html = `<div class="signal-box ${signal.signalClass} mb-4">
+        <div class="text-xl font-bold mb-1">${signal.signalText}</div>
+        ${signal.signalPosition && signal.signalLevel.startsWith('tranche') ? `<div class="text-sm opacity-80">建議累計倉位：${signal.signalPosition}</div>` : ''}
+      </div>`;
+
+      html += '<div class="space-y-2">';
+      for (const lv of levels) {
+        const reached = (lv.key === 'tranche1' && ['tranche1','tranche2','tranche3'].includes(signal.signalLevel))
+          || (lv.key === 'tranche2' && ['tranche2','tranche3'].includes(signal.signalLevel))
+          || (lv.key === 'tranche3' && signal.signalLevel === 'tranche3');
+        html += `<div class="flex items-center gap-3 p-2.5 rounded-lg ${reached ? 'bg-slate-800 border border-slate-600' : 'bg-slate-900/50 border border-slate-800 opacity-50'}">
+          <div class="w-3 h-3 rounded-full ${reached ? 'bg-green-400' : 'bg-slate-600'} shrink-0"></div>
+          <div>
+            <div class="text-sm font-medium ${reached ? 'text-white' : 'text-slate-500'}">${lv.name}</div>
+            <div class="text-xs text-slate-500">${lv.desc} → ${lv.pos}</div>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+      panel.innerHTML = html;
+    }
+
+    function updateBlockReasons(signal) {
+      const card = document.getElementById('blockReasonsCard');
+      const container = document.getElementById('blockReasons');
+      if (signal.blockReasons.length === 0) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      container.innerHTML = signal.blockReasons.map(r =>
+        `<div class="flex items-start gap-2 text-red-300"><span class="shrink-0 mt-0.5">⛔</span><span>${r}</span></div>`
+      ).join('');
+    }
+
+    function updateExitPanel(exitStatus) {
+      const panel = document.getElementById('exitPanel');
+      const bgMap = { exit: 'bg-yellow-900/20 border-yellow-700/50', hold: 'bg-blue-900/20 border-blue-700/50', info: 'bg-slate-800 border-slate-600', danger: 'bg-red-900/20 border-red-700/50', warn: 'bg-yellow-900/20 border-yellow-700/50', ok: 'bg-green-900/20 border-green-700/50' };
+      let html = '';
+      for (const item of exitStatus.items) {
+        html += `<div class="exit-card ${bgMap[item.status] || 'bg-slate-800 border-slate-600'} mb-2">
+          <div class="font-medium text-sm">${item.icon} ${item.label}</div>
+          <div class="text-xs text-slate-400 mt-1">${item.detail}</div>
+        </div>`;
+      }
+      html += `<div class="mt-3 p-3 rounded-lg bg-slate-800 border border-slate-600 text-center">
+        <div class="text-xs text-slate-500 mb-1">若已持有，目前偏向：</div>
+        <div class="text-lg font-bold ${exitStatus.biasColor}">${exitStatus.bias}</div>
+      </div>`;
+      panel.innerHTML = html;
+    }
+
+    function updateChartTitle() {
+      document.getElementById('chartTitle').textContent = `${currentSymbol} 日 K 線圖 + SMA50 / SMA200`;
+    }
+
+    // ==========================================================
+    // 主流程
+    // ==========================================================
+
+    window.switchSymbol = function(symbol) {
+      if (isLoading) return;
+      currentSymbol = symbol;
+      document.querySelectorAll('#symbolTabs .tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.symbol === symbol);
+      });
+      refreshData();
+    };
+
+    window.refreshData = async function() {
+      if (isLoading) return;
+      isLoading = true;
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('spin');
+      setStatus('loading', `載入 ${currentSymbol} 數據中...`);
+
+      try {
+        // 並行抓取：標的 + VIX + breadth proxy
+        const [mainRaw, vixData, breadth] = await Promise.all([
+          fetchWithRetry(currentSymbol),
+          fetchVIX(),
+          fetchBreadthProxy(currentSymbol),
+        ]);
+
+        // 1. 清洗數據
+        const data = parseChartData(mainRaw);
+        if (data.closes.length < 200) {
+          throw new Error(`資料不足（僅 ${data.closes.length} 筆），無法計算完整指標（需至少 200 筆日線數據）`);
+        }
+
+        // 2. 計算 Regime Score
+        const regimeResult = calcRegimeScore(data, vixData, breadth);
+
+        // 3. 計算波動濾網
+        const volFilter = calcVolatilityFilter(vixData, regimeResult);
+
+        // 4. 計算進場訊號
+        const signal = calcSignal(data, regimeResult.total, volFilter);
+
+        // 5. 計算出場狀態
+        const exitStatus = calcExitStatus(data, regimeResult, signal);
+
+        // 6. 渲染所有 UI
+        updateChartTitle();
+        renderChart(data, regimeResult);
+        updateMetricCards(data, regimeResult, signal, vixData, volFilter);
+        updateRegimeBreakdown(regimeResult);
+        updateChecklist(data, regimeResult, signal, vixData, volFilter);
+        updateSignalPanel(signal);
+        updateBlockReasons(signal);
+        updateExitPanel(exitStatus);
+
+        setStatus('success');
+        setLastUpdate();
+
+      } catch (err) {
+        console.error('[Dashboard] 錯誤:', err);
+        setStatus('error', err.message);
+      } finally {
+        isLoading = false;
+        icon.classList.remove('spin');
+      }
+    };
+
+    // ==========================================================
+    // 初始化
+    // ==========================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      refreshData();
+    });
+
+  })();
+  </script>
+</body>
+</html>
