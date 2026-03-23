@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bullish Time — 大盤進場分析師</title>
+  <title>Pulse — 波勢金融分析平台</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -80,12 +82,10 @@
     <nav class="nav-glass sticky top-0 z-50 px-6 py-4">
       <div class="max-w-[1520px] mx-auto flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-lg bg-brand/15 flex items-center justify-center">
-            <i data-lucide="bar-chart-3" class="w-5 h-5 text-brand-light"></i>
-          </div>
+          <img src="logo.png" alt="Pulse" class="w-9 h-9 rounded-lg object-contain" id="navLogo">
           <div>
-            <h1 class="text-base font-semibold text-white/90 leading-tight tracking-tight" id="navTitle">Bullish Time</h1>
-            <p class="text-[10px] text-white/25 tracking-wide" id="navSubtitle">大盤進場分析師</p>
+            <h1 class="text-base font-semibold text-white/90 leading-tight tracking-tight" id="navTitle">Pulse</h1>
+            <p class="text-[10px] text-white/25 tracking-wide" id="navSubtitle">波勢金融分析平台</p>
           </div>
         </div>
         <div class="flex items-center gap-3">
@@ -187,7 +187,7 @@
     let lang = 'zh';
     const I = {
       zh: {
-        navSubtitle:'大盤進場分析師', refresh:'刷新', close:'收盤價', rsi2consec:'RSI(2) 連續超賣',
+        navSubtitle:'波勢金融分析平台', refresh:'刷新', close:'收盤價', rsi2consec:'RSI(2) 連續超賣',
         deviation:'SMA20 乖離率', signal:'當前訊號', range2y:'近兩年', regimeBreakdown:'Regime Score 分解',
         hoverTip:'hover 查看說明', total:'總分', loading:'等待數據載入...', checklist:'量化條件檢核表',
         signalLevel:'進場訊號層級', blockTitle:'不建議進場的原因', exitRef:'持倉出場參考',
@@ -255,7 +255,7 @@
         notRecommended:'不超賣',
       },
       en: {
-        navSubtitle:'Market Entry Analyst', refresh:'Refresh', close:'Close', rsi2consec:'RSI(2) Consec. OS',
+        navSubtitle:'Financial Analysis Platform', refresh:'Refresh', close:'Close', rsi2consec:'RSI(2) Consec. OS',
         deviation:'SMA20 Deviation', signal:'Signal', range2y:'2 Years', regimeBreakdown:'Regime Score Breakdown',
         hoverTip:'hover for info', total:'Total', loading:'Awaiting data...', checklist:'Quant Checklist',
         signalLevel:'Entry Signal Level', blockTitle:'Reasons Not to Enter', exitRef:'Exit Reference',
@@ -322,7 +322,7 @@
     function applyStaticI18n() {
       document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
       document.getElementById('navSubtitle').textContent = t('navSubtitle');
-      document.title = lang === 'zh' ? 'Bullish Time — 大盤進場分析師' : 'Bullish Time — Market Entry Analyst';
+      document.title = lang === 'zh' ? 'Pulse — 波勢金融分析平台' : 'Pulse — Financial Analysis Platform';
       renderInfoContent();
     }
 
