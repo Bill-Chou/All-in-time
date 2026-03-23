@@ -127,7 +127,19 @@
             <button class="preset-btn" data-preset="aggressive" onclick="applyPreset('aggressive')"><span data-i18n="presetAggressive">🔥 積極</span></button>
           </div>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+          <!-- 回測起始（年份按鈕 + 月份滑桿）-->
+          <div class="lab-param" style="grid-column:span 2;">
+            <div class="lab-param-label" data-i18n="labStartYear">回測起始</div>
+            <div class="lab-param-value" id="valStartYear">2015/01</div>
+            <div class="flex flex-wrap gap-1 mb-2" id="yearBtnGroup">
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[9px] text-white/20">月</span>
+              <input type="range" class="lab-slider" style="flex:1;" id="sliderStartMonth" min="1" max="12" step="1" value="1" oninput="onSlider()">
+              <span class="text-[9px] text-white/30 font-mono w-4 text-right" id="monthDisplay">01</span>
+            </div>
+          </div>
           <!-- RSI 期間 -->
           <div class="lab-param">
             <div class="lab-param-label" data-i18n="labRSIPeriod">RSI 期間</div>
@@ -145,15 +157,24 @@
             <input type="range" class="lab-slider" id="sliderEntryRSI" min="5" max="30" step="1" value="15" oninput="onSlider()">
             <div class="flex justify-between text-[9px] text-white/15 mt-1"><span>5</span><span>30</span></div>
           </div>
-          <!-- RSI 出場門檻 -->
+          <!-- 出場模式切換 -->
           <div class="lab-param">
+            <div class="lab-param-label" data-i18n="labExitMode">出場模式</div>
+            <div class="flex gap-1 mb-1">
+              <button class="rsi-period-btn active" data-em="normal" onclick="setExitMode('normal')" data-i18n="exitNormal">均值回歸</button>
+              <button class="rsi-period-btn" data-em="hold" onclick="setExitMode('hold')" data-i18n="exitHold">不出場</button>
+            </div>
+            <div class="text-[9px] text-white/15" id="exitModeHint" data-i18n="exitNormalHint">RSI 回升或時間到即出場</div>
+          </div>
+          <!-- RSI 出場門檻 -->
+          <div class="lab-param" id="exitRSIParam">
             <div class="lab-param-label" data-i18n="labExitRSI">RSI 出場門檻</div>
             <div class="lab-param-value" id="valExitRSI">65</div>
             <input type="range" class="lab-slider" id="sliderExitRSI" min="50" max="85" step="1" value="65" oninput="onSlider()">
             <div class="flex justify-between text-[9px] text-white/15 mt-1"><span>50</span><span>85</span></div>
           </div>
           <!-- 時間停損 -->
-          <div class="lab-param">
+          <div class="lab-param" id="timeStopParam">
             <div class="lab-param-label" data-i18n="labTimeStop">時間停損（天）</div>
             <div class="lab-param-value" id="valTimeStop">5</div>
             <input type="range" class="lab-slider" id="sliderTimeStop" min="2" max="15" step="1" value="5" oninput="onSlider()">
@@ -180,12 +201,12 @@
       <div class="glass p-6 mb-5">
         <div class="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16">
           <div class="text-center">
-            <div class="text-[10px] text-white/25 uppercase tracking-widest mb-1" data-i18n="strategyReturn">策略總報酬</div>
+            <div class="text-[10px] text-white/25 uppercase tracking-widest mb-1" id="strategyRetLabel" data-i18n="strategyReturn">策略總報酬</div>
             <div class="text-4xl font-bold text-green-400" id="heroStrategy">--</div>
           </div>
           <div class="text-3xl text-white/15 font-light">vs</div>
           <div class="text-center">
-            <div class="text-[10px] text-white/25 uppercase tracking-widest mb-1" data-i18n="buyHoldReturn">買入持有報酬</div>
+            <div class="text-[10px] text-white/25 uppercase tracking-widest mb-1" id="bhRetLabel" data-i18n="buyHoldReturn">買入持有報酬</div>
             <div class="text-4xl font-bold text-white/40" id="heroBuyHold">--</div>
           </div>
           <div class="text-center">
@@ -193,7 +214,7 @@
             <div class="text-4xl font-bold text-brand-light" id="heroAlpha">--</div>
           </div>
           <div class="text-center">
-            <div class="text-[10px] text-white/25 uppercase tracking-widest mb-1" data-i18n="finalCapital">最終資產</div>
+            <div class="text-[10px] text-white/25 uppercase tracking-widest mb-1" id="heroCapitalLabel" data-i18n="finalCapital">最終資產</div>
             <div class="text-4xl font-bold text-white/70" id="heroCapital">--</div>
           </div>
         </div>
@@ -339,7 +360,8 @@
         presetDefault:'📐 預設', presetConservative:'🛡️ 保守', presetAggressive:'🔥 積極',
         labRSIPeriod:'RSI 期間', labRSIPeriodHint:'越短越敏感',
         labEntryRSI:'RSI 進場門檻', labExitRSI:'RSI 出場門檻',
-        labTimeStop:'時間停損（天）', labRegime:'Regime 最低門檻', labCapital:'初始資金',
+        labTimeStop:'時間停損（天）', labRegime:'Regime 最低門檻', labCapital:'初始資金', labStartYear:'回測起始',
+        labExitMode:'出場模式', exitNormal:'均值回歸', exitHold:'不出場', exitNormalHint:'RSI 回升或時間到即出場', exitHoldHint:'訊號進場後不出場，持有至回測結束',
         finalCapital:'最終資產',
       },
       en:{
@@ -365,7 +387,8 @@
         presetDefault:'📐 Default', presetConservative:'🛡️ Conservative', presetAggressive:'🔥 Aggressive',
         labRSIPeriod:'RSI Period', labRSIPeriodHint:'Shorter = more sensitive',
         labEntryRSI:'RSI Entry Threshold', labExitRSI:'RSI Exit Threshold',
-        labTimeStop:'Time Stop (days)', labRegime:'Min Regime Score', labCapital:'Initial Capital',
+        labTimeStop:'Time Stop (days)', labRegime:'Min Regime Score', labCapital:'Initial Capital', labStartYear:'Backtest Start',
+        labExitMode:'Exit Mode', exitNormal:'Mean Reversion', exitHold:'Hold', exitNormalHint:'Exit on RSI recovery or time stop', exitHoldHint:'Hold until end after signal entry',
         finalCapital:'Final Capital',
       }
     };
@@ -380,18 +403,63 @@
     function pctRank(d,idx,lb){const s=[];for(let i=Math.max(0,idx-lb+1);i<=idx;i++){if(d[i]!=null)s.push(d[i]);}if(s.length<20||d[idx]==null)return null;return(s.filter(v=>v<d[idx]).length/s.length)*100;}
 
     // === 資料抓取 ===
-    async function fetchWithRetry(sym){const base=`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?range=2y&interval=1d`;const px=[u=>u,u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`];for(const mk of px){try{const r=await fetch(mk(base),{signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();if(j.chart?.result?.length>0)return j;throw new Error('bad');}catch(e){console.warn(`[BT] ${sym}:`,e.message);}}throw new Error(`無法取得 ${sym}`);}
+    async function fetchWithRetry(sym){const base=`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?range=max&interval=1d`;const px=[u=>u,u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`];for(const mk of px){try{const r=await fetch(mk(base),{signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();if(j.chart?.result?.length>0)return j;throw new Error('bad');}catch(e){console.warn(`[BT] ${sym}:`,e.message);}}throw new Error(`無法取得 ${sym}`);}
     function parseData(raw){const res=raw.chart.result[0];const ts=res.timestamp,q=res.indicators.quote[0];const d={dates:[],o:[],h:[],l:[],c:[],v:[]};for(let i=0;i<ts.length;i++){if(q.open[i]==null||q.close[i]==null||q.high[i]===0)continue;d.dates.push(ts[i]);d.o.push(q.open[i]);d.h.push(q.high[i]);d.l.push(q.low[i]);d.c.push(q.close[i]);d.v.push(q.volume[i]||0);}return d;}
 
     // === 回測引擎 ===
     // === 實驗室參數 ===
-    let params = { rsiPeriod:2, entryRSI:15, exitRSI:65, timeStop:5, regimeMin:70, capital:100000 };
+    let params = { rsiPeriod:2, entryRSI:15, exitRSI:65, timeStop:5, regimeMin:70, capital:100000, startYear:2015, startMonth:1, exitMode:'normal' };
     let cachedData=null, cachedVix=null; // 快取資料，滑桿調整時不需重抓
 
     const PRESETS = {
-      default:      { rsiPeriod:2, entryRSI:15, exitRSI:65, timeStop:5, regimeMin:70, capital:100000 },
-      conservative: { rsiPeriod:2, entryRSI:10, exitRSI:60, timeStop:3, regimeMin:80, capital:100000 },
-      aggressive:   { rsiPeriod:3, entryRSI:20, exitRSI:70, timeStop:7, regimeMin:60, capital:100000 },
+      default:      { rsiPeriod:2, entryRSI:15, exitRSI:65, timeStop:5, regimeMin:70, capital:100000, startYear:2015, startMonth:1, exitMode:'normal' },
+      conservative: { rsiPeriod:2, entryRSI:10, exitRSI:60, timeStop:3, regimeMin:80, capital:100000, startYear:2015, startMonth:1, exitMode:'normal' },
+      aggressive:   { rsiPeriod:3, entryRSI:20, exitRSI:70, timeStop:7, regimeMin:60, capital:100000, startYear:2015, startMonth:1, exitMode:'normal' },
+    };
+
+    // 初始化年份按鈕
+    (function initYearBtns(){
+      const g=document.getElementById('yearBtnGroup');
+      const curYear=new Date().getFullYear();
+      for(let y=2005;y<=curYear;y++){
+        const b=document.createElement('button');
+        b.className='rsi-period-btn'+(y===2015?' active':'');
+        b.dataset.yr=y; b.textContent=String(y).slice(2); // 顯示 '05','06'...
+        b.style.cssText='padding:3px 6px;font-size:10px;min-width:28px;';
+        b.onclick=function(){ setStartYear(y); };
+        g.appendChild(b);
+      }
+    })();
+
+    window.setStartYear=function(y){
+      params.startYear=y;
+      document.querySelectorAll('#yearBtnGroup [data-yr]').forEach(b=>b.classList.toggle('active',+b.dataset.yr===y));
+      onSlider();
+    };
+
+    window.setExitMode=function(mode){
+      params.exitMode=mode;
+      document.querySelectorAll('[data-em]').forEach(b=>b.classList.toggle('active',b.dataset.em===mode));
+      const isHold=mode==='hold';
+      document.getElementById('exitRSIParam').style.opacity=isHold?'0.3':'1';
+      document.getElementById('exitRSIParam').style.pointerEvents=isHold?'none':'auto';
+      document.getElementById('timeStopParam').style.opacity=isHold?'0.3':'1';
+      document.getElementById('timeStopParam').style.pointerEvents=isHold?'none':'auto';
+      const hint=document.getElementById('exitModeHint');
+      // 更新資金標籤
+      const capLabel = document.querySelector('[data-i18n="labCapital"]');
+      if(lang==='zh'){
+        hint.textContent=isHold?'每次訊號觸發時投入固定金額，持有到回測結束':'RSI 回升或時間到即出場';
+        document.getElementById('strategyRetLabel').textContent=isHold?'訊號分批投入':'策略總報酬';
+        document.getElementById('bhRetLabel').textContent=isHold?'第一天 All-in':'買入持有報酬';
+        if(capLabel) capLabel.textContent=isHold?'每次投入資金':'初始資金';
+      } else {
+        hint.textContent=isHold?'Deploy fixed amount on each signal, hold to end':'Exit on RSI recovery or time stop';
+        document.getElementById('strategyRetLabel').textContent=isHold?'Signal-Based DCA':'Strategy Return';
+        document.getElementById('bhRetLabel').textContent=isHold?'Day-1 All-in':'Buy & Hold';
+        if(capLabel) capLabel.textContent=isHold?'Per-Trade Capital':'Initial Capital';
+      }
+      rerun();
     };
 
     function getParams(){
@@ -402,6 +470,9 @@
         timeStop: +document.getElementById('sliderTimeStop').value,
         regimeMin: +document.getElementById('sliderRegime').value,
         capital: +document.getElementById('sliderCapital').value,
+        startYear: params.startYear,
+        startMonth: +document.getElementById('sliderStartMonth').value,
+        exitMode: params.exitMode,
       };
     }
 
@@ -411,11 +482,27 @@
       document.getElementById('sliderTimeStop').value=p.timeStop;
       document.getElementById('sliderRegime').value=p.regimeMin;
       document.getElementById('sliderCapital').value=p.capital;
+      document.getElementById('sliderStartMonth').value=p.startMonth||1;
+      params.startYear=p.startYear; params.exitMode=p.exitMode||'normal';
+      document.querySelectorAll('#yearBtnGroup [data-yr]').forEach(b=>b.classList.toggle('active',+b.dataset.yr===p.startYear));
+      document.querySelectorAll('[data-em]').forEach(b=>b.classList.toggle('active',b.dataset.em===params.exitMode));
+      const isHold=params.exitMode==='hold';
+      document.getElementById('exitRSIParam').style.opacity=isHold?'0.3':'1';
+      document.getElementById('exitRSIParam').style.pointerEvents=isHold?'none':'auto';
+      document.getElementById('timeStopParam').style.opacity=isHold?'0.3':'1';
+      document.getElementById('timeStopParam').style.pointerEvents=isHold?'none':'auto';
       document.getElementById('valEntryRSI').textContent=p.entryRSI;
       document.getElementById('valExitRSI').textContent=p.exitRSI;
       document.getElementById('valTimeStop').textContent=p.timeStop;
       document.getElementById('valRegime').textContent=p.regimeMin;
       document.getElementById('valCapital').textContent='$'+p.capital.toLocaleString();
+      document.getElementById('valStartYear').textContent=p.startYear+'/'+String(p.startMonth||1).padStart(2,'0');
+      // 資金標籤
+      const capLabel = document.querySelector('[data-i18n="labCapital"]');
+      if(capLabel){
+        if(lang==='zh') capLabel.textContent=isHold?'每次投入資金':'初始資金';
+        else capLabel.textContent=isHold?'Per-Trade Capital':'Initial Capital';
+      }
       // RSI 期間按鈕
       document.querySelectorAll('[data-rp]').forEach(b=>b.classList.toggle('active',+b.dataset.rp===p.rsiPeriod));
       params=p;
@@ -442,6 +529,8 @@
       document.getElementById('valTimeStop').textContent=p.timeStop;
       document.getElementById('valRegime').textContent=p.regimeMin;
       document.getElementById('valCapital').textContent='$'+p.capital.toLocaleString();
+      document.getElementById('valStartYear').textContent=p.startYear+'/'+String(p.startMonth||1).padStart(2,'0');
+      document.getElementById('monthDisplay').textContent=String(p.startMonth||1).padStart(2,'0');
       // 清除預設高亮
       document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
       params=p;
@@ -455,7 +544,7 @@
       if(!cachedData)return;
       const p=getParams();p.rsiPeriod=params.rsiPeriod;
       const result=runBacktest(cachedData,cachedVix,p);
-      updateStats(result.stats,p.capital);
+      updateStats(result.stats,p.capital,result.holdStats);
       renderEquityCurve(result.eqCurve,result.bhCurve);
       renderPriceChart(cachedData,result.trades);
       renderMonthlyHeatmap(result.trades);
@@ -480,9 +569,14 @@
         }
       }
 
-      const trades=[];
+      const trades=[], holdEntries=[];
       let inPos=false, entryPrice=0, entryIdx=0, tranche=0, entryRegime=0;
-      const startIdx=200;
+      // 起始索引：至少 200（指標需要），且不早於使用者選擇的起始年月
+      let startIdx=200;
+      if(p.startYear){
+        const startTs=new Date(p.startYear,(p.startMonth||1)-1,1).getTime()/1000;
+        for(let i=200;i<n;i++){if(data.dates[i]>=startTs){startIdx=i;break;}}
+      }
 
       // 進場門檻分層：T1=entryRSI, T2=entryRSI*0.53, T3=entryRSI*0.33
       const t1Thresh=p.entryRSI;
@@ -507,28 +601,60 @@
         if(vixC!=null&&vixS!=null&&vixS>0&&vixC/vixS<1.15) regime+=5;
         regime=Math.min(regime,100);
 
-        if(!inPos){
-          let tr=0;
-          if(regime>=Math.min(p.regimeMin+5,95)&&rsiArr[i]!=null&&rsiArr[i]<t3Thresh) tr=3;
-          else if(regime>=p.regimeMin&&rsiArr[i]!=null&&rsiArr[i]<t2Thresh) tr=2;
-          else if(regime>=p.regimeMin&&rsiArr[i]!=null&&rsiArr[i]<t1Thresh) tr=1;
-          if(tr>0){ inPos=true; entryPrice=c[i]; entryIdx=i; tranche=tr; entryRegime=regime; }
-        } else {
-          const holdDays=i-entryIdx;
-          const exitRSI=rsiArr[i]!=null&&rsiArr[i]>p.exitRSI;
-          const exitSMA=s5[i]!=null&&c[i]>s5[i];
-          const exitTime=holdDays>=p.timeStop;
-          if(exitRSI||exitSMA||exitTime){
-            const retPct=((c[i]-entryPrice)/entryPrice)*100;
-            const posSize=tranche===3?1:tranche===2?0.6:0.3;
-            trades.push({
-              entryDate:data.dates[entryIdx], exitDate:data.dates[i],
-              entryPrice, exitPrice:c[i], retPct, holdDays,
-              tranche, win:retPct>0, regime:entryRegime, posSize,
-              weightedRet:retPct*posSize,
-            });
-            inPos=false;
+        if(p.exitMode==='hold'){
+          // 不出場模式：訊號觸發即進場，持有到回測結束，至少間隔 5 天才允許下次進場
+          if(!inPos){
+            let tr=0;
+            if(regime>=Math.min(p.regimeMin+5,95)&&rsiArr[i]!=null&&rsiArr[i]<t3Thresh) tr=3;
+            else if(regime>=p.regimeMin&&rsiArr[i]!=null&&rsiArr[i]<t2Thresh) tr=2;
+            else if(regime>=p.regimeMin&&rsiArr[i]!=null&&rsiArr[i]<t1Thresh) tr=1;
+            if(tr>0){
+              inPos=true; entryIdx=i;
+              const posSize=tr===3?1:tr===2?0.6:0.3;
+              holdEntries.push({entryIdx:i, entryPrice:c[i], tranche:tr, posSize, regime});
+            }
+          } else if(i-entryIdx>=5){
+            inPos=false; // 5 天冷卻後允許再次進場
           }
+        } else {
+          // 均值回歸出場模式
+          if(!inPos){
+            let tr=0;
+            if(regime>=Math.min(p.regimeMin+5,95)&&rsiArr[i]!=null&&rsiArr[i]<t3Thresh) tr=3;
+            else if(regime>=p.regimeMin&&rsiArr[i]!=null&&rsiArr[i]<t2Thresh) tr=2;
+            else if(regime>=p.regimeMin&&rsiArr[i]!=null&&rsiArr[i]<t1Thresh) tr=1;
+            if(tr>0){ inPos=true; entryPrice=c[i]; entryIdx=i; tranche=tr; entryRegime=regime; }
+          } else {
+            const holdDays=i-entryIdx;
+            const exitRSI=rsiArr[i]!=null&&rsiArr[i]>p.exitRSI;
+            const exitSMA=s5[i]!=null&&c[i]>s5[i];
+            const exitTime=holdDays>=p.timeStop;
+            if(exitRSI||exitSMA||exitTime){
+              const retPct=((c[i]-entryPrice)/entryPrice)*100;
+              const posSize=tranche===3?1:tranche===2?0.6:0.3;
+              trades.push({
+                entryDate:data.dates[entryIdx], exitDate:data.dates[i],
+                entryPrice, exitPrice:c[i], retPct, holdDays,
+                tranche, win:retPct>0, regime:entryRegime, posSize,
+                weightedRet:retPct*posSize,
+              });
+              inPos=false;
+            }
+          }
+        }
+      }
+
+      // 不出場模式：把所有 holdEntries 在最後一天結算
+      if(p.exitMode==='hold'&&holdEntries.length>0){
+        const lastPrice=c[n-1];
+        for(const he of holdEntries){
+          const retPct=((lastPrice-he.entryPrice)/he.entryPrice)*100;
+          trades.push({
+            entryDate:data.dates[he.entryIdx], exitDate:data.dates[n-1],
+            entryPrice:he.entryPrice, exitPrice:lastPrice, retPct,
+            holdDays:n-1-he.entryIdx, tranche:he.tranche, win:retPct>0,
+            regime:he.regime, posSize:he.posSize, weightedRet:retPct*he.posSize,
+          });
         }
       }
 
@@ -537,14 +663,54 @@
       let eqVal=100;
       const firstClose=c[startIdx];
       let tradeIdx=0;
-      for(let i=startIdx;i<n;i++){
-        const bh=100*(c[i]/firstClose);
-        bhCurve.push({time:data.dates[i],value:bh});
-        while(tradeIdx<trades.length&&data.dates[i]>=trades[tradeIdx].exitDate){
-          eqVal*=(1+trades[tradeIdx].weightedRet/100);
-          tradeIdx++;
+
+      if(p.exitMode==='hold'){
+        // ====== 不出場模式（每次訊號投入固定金額，持有到回測結束）======
+        // 模型：每次訊號觸發時投入 p.capital（每次投入資金）買入股票並持有
+        // lots: [{shares, cost, entryIdx}] 每筆買入
+        let lots=[], totalDeployed=0;
+        const perTradeAmt = p.capital; // 每次投入金額
+
+        for(let i=startIdx;i<n;i++){
+          // 檢查是否有新進場
+          for(const he of holdEntries){
+            if(he.entryIdx===i){
+              const shares = perTradeAmt / c[i];
+              lots.push({ shares, cost:perTradeAmt, entryPrice:c[i], entryIdx:i });
+              totalDeployed += perTradeAmt;
+            }
+          }
+
+          // 計算策略總資產 = 所有持倉的當前市值
+          let mktVal = 0;
+          for(const lot of lots) mktVal += lot.shares * c[i];
+          // 策略曲線：以「已投入總成本」為基準的報酬
+          const stBase = totalDeployed > 0 ? totalDeployed : 1;
+          eqCurve.push({time:data.dates[i], value: totalDeployed > 0 ? (mktVal / stBase) * 100 : 100 });
+
+          // Buy & Hold 對比：同樣的錢在第一天全部 All-in
+          // 總投入 = 每次投入金額 × 交易次數，全部在回測第一天買入
+          const allInTotal = holdEntries.length * perTradeAmt;
+          const allInShares = allInTotal / firstClose;
+          const allInVal = allInShares * c[i];
+          bhCurve.push({time:data.dates[i], value: allInTotal > 0 ? (allInVal / allInTotal) * 100 : 100 });
         }
-        eqCurve.push({time:data.dates[i],value:eqVal});
+
+        // 最終數值
+        const finalMktVal = lots.reduce((a,l) => a + l.shares * c[n-1], 0);
+        totalDeployed = lots.reduce((a,l) => a + l.cost, 0);
+        eqVal = totalDeployed > 0 ? (finalMktVal / totalDeployed) * 100 : 100;
+      } else {
+        // ====== 均值回歸出場模式 ======
+        for(let i=startIdx;i<n;i++){
+          const bh=100*(c[i]/firstClose);
+          bhCurve.push({time:data.dates[i],value:bh});
+          while(tradeIdx<trades.length&&data.dates[i]>=trades[tradeIdx].exitDate){
+            eqVal*=(1+trades[tradeIdx].weightedRet/100);
+            tradeIdx++;
+          }
+          eqCurve.push({time:data.dates[i],value:eqVal});
+        }
       }
 
       // 統計
@@ -556,7 +722,7 @@
       const pf=negRets>0?(posRets/negRets):posRets>0?99:0;
       const avgDays=trades.length?(trades.reduce((a,t)=>a+t.holdDays,0)/trades.length):0;
       const totalRet=eqVal-100;
-      const bhRet=trades.length?((c[n-1]/firstClose-1)*100):0;
+      const bhRet=((c[n-1]/firstClose-1)*100);
       let peak=100,maxDD=0;
       for(const pt of eqCurve){if(pt.value>peak)peak=pt.value;const dd=(peak-pt.value)/peak*100;if(dd>maxDD)maxDD=dd;}
       const dailyRets=trades.map(t=>t.weightedRet/t.holdDays);
@@ -564,7 +730,26 @@
       const stdDR=dailyRets.length>1?Math.sqrt(dailyRets.reduce((a,b)=>a+(b-meanDR)**2,0)/(dailyRets.length-1)):1;
       const sharpe=stdDR>0?((meanDR*252-4)/(stdDR*Math.sqrt(252))):0;
 
-      return {trades, eqCurve, bhCurve, stats:{
+      // 不出場模式額外統計
+      let holdStats = null;
+      if(p.exitMode==='hold' && holdEntries.length > 0){
+        const perTrade = p.capital;
+        const totalCost = holdEntries.length * perTrade;
+        const finalVal = holdEntries.reduce((a,he) => a + (perTrade / he.entryPrice) * c[n-1], 0);
+        const allInVal = totalCost / firstClose * c[n-1];
+        holdStats = {
+          tradeCount: holdEntries.length,
+          perTradeAmt: perTrade,
+          totalDeployed: totalCost,
+          finalAsset: finalVal,
+          strategyRet: ((finalVal / totalCost) - 1) * 100,
+          allInTotal: totalCost,
+          allInFinal: allInVal,
+          allInRet: ((allInVal / totalCost) - 1) * 100,
+        };
+      }
+
+      return {trades, eqCurve, bhCurve, holdStats, stats:{
         total:trades.length, wins, losses, winRate, avgRet, pf, maxDD, sharpe, totalRet, bhRet, avgDays, alpha:totalRet-bhRet
       }};
     }
@@ -712,15 +897,36 @@
       document.getElementById('tradeLogWrap').innerHTML=html;
     }
 
-    function updateStats(s, capital){
+    function updateStats(s, capital, holdStats){
       capital=capital||100000;
-      const finalCap=capital*(1+s.totalRet/100);
-      document.getElementById('heroStrategy').textContent=`+${s.totalRet.toFixed(1)}%`;
-      document.getElementById('heroBuyHold').textContent=`${s.bhRet>=0?'+':''}${s.bhRet.toFixed(1)}%`;
-      document.getElementById('heroAlpha').textContent=`${s.alpha>=0?'+':''}${s.alpha.toFixed(1)}%`;
-      document.getElementById('heroAlpha').className=`text-4xl font-bold ${s.alpha>=0?'text-green-400':'text-red-400'}`;
-      document.getElementById('heroCapital').textContent=`$${Math.round(finalCap).toLocaleString()}`;
-      document.getElementById('heroCapital').className=`text-4xl font-bold ${s.totalRet>=0?'text-green-400':'text-red-400'}`;
+      if(holdStats){
+        // === 不出場模式：用 holdStats 的精確數據 ===
+        const hs = holdStats;
+        document.getElementById('heroStrategy').textContent=`${hs.strategyRet>=0?'+':''}${hs.strategyRet.toFixed(1)}%`;
+        document.getElementById('heroStrategy').className=`text-4xl font-bold ${hs.strategyRet>=0?'text-green-400':'text-red-400'}`;
+        document.getElementById('heroBuyHold').textContent=`${hs.allInRet>=0?'+':''}${hs.allInRet.toFixed(1)}%`;
+        const alpha = hs.strategyRet - hs.allInRet;
+        document.getElementById('heroAlpha').textContent=`${alpha>=0?'+':''}${alpha.toFixed(1)}%`;
+        document.getElementById('heroAlpha').className=`text-4xl font-bold ${alpha>=0?'text-green-400':'text-red-400'}`;
+        // 最終資產顯示
+        document.getElementById('heroCapital').textContent=`$${Math.round(hs.finalAsset).toLocaleString()}`;
+        document.getElementById('heroCapital').className=`text-4xl font-bold ${hs.strategyRet>=0?'text-green-400':'text-red-400'}`;
+        // 更新資本相關標籤
+        const isZh = lang==='zh';
+        document.getElementById('heroCapitalLabel').textContent = isZh
+          ? `總投入 $${hs.totalDeployed.toLocaleString()}（${hs.tradeCount} 次 × $${hs.perTradeAmt.toLocaleString()}）`
+          : `Deployed $${hs.totalDeployed.toLocaleString()} (${hs.tradeCount} × $${hs.perTradeAmt.toLocaleString()})`;
+      } else {
+        const finalCap=capital*(1+s.totalRet/100);
+        document.getElementById('heroStrategy').textContent=`${s.totalRet>=0?'+':''}${s.totalRet.toFixed(1)}%`;
+        document.getElementById('heroStrategy').className=`text-4xl font-bold ${s.totalRet>=0?'text-green-400':'text-red-400'}`;
+        document.getElementById('heroBuyHold').textContent=`${s.bhRet>=0?'+':''}${s.bhRet.toFixed(1)}%`;
+        document.getElementById('heroAlpha').textContent=`${s.alpha>=0?'+':''}${s.alpha.toFixed(1)}%`;
+        document.getElementById('heroAlpha').className=`text-4xl font-bold ${s.alpha>=0?'text-green-400':'text-red-400'}`;
+        document.getElementById('heroCapital').textContent=`$${Math.round(finalCap).toLocaleString()}`;
+        document.getElementById('heroCapital').className=`text-4xl font-bold ${s.totalRet>=0?'text-green-400':'text-red-400'}`;
+        document.getElementById('heroCapitalLabel').textContent = lang==='zh' ? '最終資產' : 'Final Capital';
+      }
       document.getElementById('statTrades').textContent=s.total;
       document.getElementById('statWinRate').textContent=`${s.winRate.toFixed(1)}%`;
       document.getElementById('statAvgReturn').textContent=`${s.avgRet>=0?'+':''}${s.avgRet.toFixed(2)}%`;
@@ -743,7 +949,7 @@
         if(cachedData.c.length<250)throw new Error(`數據不足（${cachedData.c.length}筆）`);
         const p=getParams();p.rsiPeriod=params.rsiPeriod;
         const result=runBacktest(cachedData,cachedVix,p);
-        updateStats(result.stats,p.capital);
+        updateStats(result.stats,p.capital,result.holdStats);
         renderEquityCurve(result.eqCurve,result.bhCurve);
         renderPriceChart(cachedData,result.trades);
         renderMonthlyHeatmap(result.trades);
