@@ -127,17 +127,21 @@
             <button class="preset-btn" data-preset="aggressive" onclick="applyPreset('aggressive')"><span data-i18n="presetAggressive">🔥 積極</span></button>
           </div>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-          <!-- 回測起始（年份按鈕 + 月份滑桿）-->
-          <div class="lab-param" style="grid-column:span 2;">
+        <div class="grid grid-cols-3 md:grid-cols-5 xl:grid-cols-9 gap-2.5">
+          <!-- 回測起始（年份箭頭 + 月份滑桿）-->
+          <div class="lab-param">
             <div class="lab-param-label" data-i18n="labStartYear">回測起始</div>
-            <div class="lab-param-value" id="valStartYear">2015/01</div>
-            <div class="flex flex-wrap gap-1 mb-2" id="yearBtnGroup">
+            <div class="flex items-center justify-center gap-1 mb-2">
+              <button onclick="nudgeYear(-1)" class="w-6 h-6 rounded flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors text-xs font-bold">◀</button>
+              <span class="text-base font-bold text-white/80 text-center min-w-[48px]" id="valStartYear">2015</span>
+              <button onclick="nudgeYear(1)" class="w-6 h-6 rounded flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors text-xs font-bold">▶</button>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="text-[9px] text-white/20">月</span>
-              <input type="range" class="lab-slider" style="flex:1;" id="sliderStartMonth" min="1" max="12" step="1" value="1" oninput="onSlider()">
-              <span class="text-[9px] text-white/30 font-mono w-4 text-right" id="monthDisplay">01</span>
+            <div id="yearBtnGroup" style="display:none;"></div>
+            <div class="relative">
+              <input type="range" class="lab-slider" id="sliderStartMonth" min="1" max="12" step="1" value="1" oninput="onSlider()">
+              <div class="text-center mt-1">
+                <span class="text-[11px] font-mono text-white/50" id="monthDisplay">1 月</span>
+              </div>
             </div>
           </div>
           <!-- RSI 期間 -->
@@ -432,9 +436,14 @@
     })();
 
     window.setStartYear=function(y){
+      const curYear=new Date().getFullYear();
+      y=Math.max(2005,Math.min(curYear,y));
       params.startYear=y;
       document.querySelectorAll('#yearBtnGroup [data-yr]').forEach(b=>b.classList.toggle('active',+b.dataset.yr===y));
       onSlider();
+    };
+    window.nudgeYear=function(delta){
+      setStartYear(params.startYear+delta);
     };
 
     window.setExitMode=function(mode){
@@ -496,7 +505,9 @@
       document.getElementById('valTimeStop').textContent=p.timeStop;
       document.getElementById('valRegime').textContent=p.regimeMin;
       document.getElementById('valCapital').textContent='$'+p.capital.toLocaleString();
-      document.getElementById('valStartYear').textContent=p.startYear+'/'+String(p.startMonth||1).padStart(2,'0');
+      document.getElementById('valStartYear').textContent=p.startYear;
+      const sm=p.startMonth||1;
+      document.getElementById('monthDisplay').textContent=lang==='zh'?`${sm} 月`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][sm-1]}`;
       // 資金標籤
       const capLabel = document.querySelector('[data-i18n="labCapital"]');
       if(capLabel){
@@ -529,8 +540,9 @@
       document.getElementById('valTimeStop').textContent=p.timeStop;
       document.getElementById('valRegime').textContent=p.regimeMin;
       document.getElementById('valCapital').textContent='$'+p.capital.toLocaleString();
-      document.getElementById('valStartYear').textContent=p.startYear+'/'+String(p.startMonth||1).padStart(2,'0');
-      document.getElementById('monthDisplay').textContent=String(p.startMonth||1).padStart(2,'0');
+      document.getElementById('valStartYear').textContent=p.startYear;
+      const m=p.startMonth||1;
+      document.getElementById('monthDisplay').textContent=lang==='zh'?`${m} 月`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1]}`;
       // 清除預設高亮
       document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
       params=p;
