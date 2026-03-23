@@ -82,7 +82,7 @@
     <nav class="nav-glass sticky top-0 z-50 px-6 py-4">
       <div class="max-w-[1520px] mx-auto flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
-          <img src="logo.png" alt="Pulse" class="w-20 h-20 rounded-lg object-contain" id="navLogo">
+          <img src="logo.png" alt="Pulse" class="w-14 h-14 rounded-lg object-contain" id="navLogo">
           <div>
             <h1 class="text-base font-semibold text-white/90 leading-tight tracking-tight" id="navTitle">Pulse</h1>
             <p class="text-[10px] text-white/25 tracking-wide" id="navSubtitle">波勢金融分析平台</p>
@@ -98,7 +98,11 @@
             <button class="lang-btn" data-lang="en" onclick="switchLang('en')">EN</button>
           </div>
         </div>
-        <div class="flex items-center gap-5">
+        <div class="flex items-center gap-4">
+          <a href="backtest.html" class="flex items-center gap-2 px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white/70 rounded-lg text-xs transition-all border border-white/[0.05]">
+            <i data-lucide="flask-conical" class="w-3 h-3"></i>
+            <span data-i18n="backtestLink">回測中心</span>
+          </a>
           <div class="flex items-center gap-2 text-xs">
             <div id="statusDot" class="pulse-dot bg-yellow-400"></div>
             <span id="statusText" class="text-white/40">載入中...</span>
@@ -187,7 +191,7 @@
     let lang = 'zh';
     const I = {
       zh: {
-        navSubtitle:'波勢金融分析平台', refresh:'刷新', close:'收盤價', rsi2consec:'RSI(2) 連續超賣',
+        navSubtitle:'波勢金融分析平台', backtestLink:'回測中心', refresh:'刷新', close:'收盤價', rsi2consec:'RSI(2) 連續超賣',
         deviation:'SMA20 乖離率', signal:'當前訊號', range2y:'近兩年', regimeBreakdown:'Regime Score 分解',
         hoverTip:'hover 查看說明', total:'總分', loading:'等待數據載入...', checklist:'量化條件檢核表',
         signalLevel:'進場訊號層級', blockTitle:'不建議進場的原因', exitRef:'持倉出場參考',
@@ -255,7 +259,7 @@
         notRecommended:'不超賣',
       },
       en: {
-        navSubtitle:'Financial Analysis Platform', refresh:'Refresh', close:'Close', rsi2consec:'RSI(2) Consec. OS',
+        navSubtitle:'Financial Analysis Platform', backtestLink:'Backtest', refresh:'Refresh', close:'Close', rsi2consec:'RSI(2) Consec. OS',
         deviation:'SMA20 Deviation', signal:'Signal', range2y:'2 Years', regimeBreakdown:'Regime Score Breakdown',
         hoverTip:'hover for info', total:'Total', loading:'Awaiting data...', checklist:'Quant Checklist',
         signalLevel:'Entry Signal Level', blockTitle:'Reasons Not to Enter', exitRef:'Exit Reference',
