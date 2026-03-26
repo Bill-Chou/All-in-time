@@ -285,20 +285,32 @@ jobs:
               arrow = '📈' if chg >= 0 else '📉'
 
               # 組裝訊息
-              msg = f"""
-{arrow} *{symbol}* `${lat:.2f}` ({'+' if chg>=0 else ''}{chg:.2f}, {'+' if chg_pct>=0 else ''}{chg_pct:.2f}%)
-
-🏛 *Regime Score:* `{score}/100` {'🟢' if score>=70 else '🟡' if score>=50 else '🔴'}
-📊 *RSI(2):* `{lr2:.1f}` | RSI(5): `{lr5:.1f if lr5 else 'N/A'}`
-🔢 *RSI(2) 連續<10:* `{days}天`
-📏 *IBS:* `{libs:.2f}` | 乖離率: `{dev:.2f}%` {'' if dev is None else ''}
-🔥 *VIX:* `{vix_close:.1f}` {'🟢' if vix_close and vix_close<25 else '🟡' if vix_close and vix_close<32 else '🔴' if vix_close else '⚪'}
-{'%R(2): `'+f'{lwr:.1f}'+'`' if lwr else ''}
-
-*訊號: {signal}*
-{signal_detail}
-{'持倉偏向: ' + exit_bias if exit_bias else ''}"""
-              return msg.strip(), is_entry
+              lines = []
+              chg_sign = '+' if chg >= 0 else ''
+              pct_sign = '+' if chg_pct >= 0 else ''
+              lines.append(f'{arrow} *{symbol}* `${lat:.2f}` ({chg_sign}{chg:.2f}, {pct_sign}{chg_pct:.2f}%)')
+              lines.append('')
+              regime_icon = '\U0001f7e2' if score>=70 else '\U0001f7e1' if score>=50 else '\U0001f534'
+              lines.append(f'\U0001f3db *Regime Score:* `{score}/100` {regime_icon}')
+              lr2_str = f'{lr2:.1f}' if lr2 is not None else 'N/A'
+              lr5_str = f'{lr5:.1f}' if lr5 is not None else 'N/A'
+              lines.append(f'\U0001f4ca *RSI(2):* `{lr2_str}` | RSI(5): `{lr5_str}`')
+              lines.append(f'\U0001f522 *RSI(2) <10:* `{days}d`')
+              dev_str = f'{dev:.2f}%' if dev is not None else 'N/A'
+              lines.append(f'\U0001f4cf *IBS:* `{libs:.2f}` | Dev: `{dev_str}`')
+              vix_str = f'{vix_close:.1f}' if vix_close else 'N/A'
+              vix_icon = '\U0001f7e2' if vix_close and vix_close<25 else '\U0001f7e1' if vix_close and vix_close<32 else '\U0001f534'
+              lines.append(f'\U0001f525 *VIX:* `{vix_str}` {vix_icon}')
+              if lwr is not None:
+                  lines.append(f'%R(2): `{lwr:.1f}`')
+              lines.append('')
+              lines.append(f'*Signal: {signal}*')
+              if signal_detail:
+                  lines.append(signal_detail)
+              if exit_bias:
+                  lines.append(f'Exit bias: {exit_bias}')
+              msg = '\n'.join(lines)
+              return msg, is_entry
 
           def send_telegram(text):
               """發送 Telegram 訊息"""
